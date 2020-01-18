@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"golang.org/x/net/html"
+	"github.com/andybalholm/cascadia"
 	"github.com/gorilla/feeds"
 	"github.com/mmcdole/gofeed"
 )
@@ -57,15 +59,14 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 
 		newFeed.Items = make([]*feeds.Item, len(oldFeed.Items))
 		progressChan := make(chan(int))
-		modifyItemFunc := func(item *feeds.Item) {
-			modifyItem(item)
-			progressChan <- 1
-		}
 
 		for index, oldItem := range oldFeed.Items {
 			newItem := convertItem(oldItem)
 			newFeed.Items[index] = newItem
-			go modifyItemFunc(newItem)
+			go func(item *feeds.Item) {
+				modifyItem(item)
+				progressChan <- 1
+			}(newItem)
 		}
 
 		for i := 0;  i<len(oldFeed.Items); i++ {
@@ -103,10 +104,31 @@ func convertItem(oldItem *gofeed.Item) (newItem *feeds.Item) {
 }
 
 func processDilbertItem(item *feeds.Item) {
-	// TODO request item.Link.Href
-	// TODO parse title and image url
-	// TODO set Title and Content
-	fmt.Println(item.Link.Href)
+	resp, err := http.Get(item.Link.Href)
+	if err != nil {
+		return // do nothing; leave feed item unchanged
+	}
+	defer resp.Body.Close()
+
+	dilbertPage, err := html.Parse(resp.Body)
+	if err != nil {
+		return // do nothing; leave feed item unchanged
+	}
+
+	comicName := cascadia.MustCompile("span.comic-title-name").
+			MatchFirst(dilbertPage).FirstChild.Data
+	item.Title += " - " + comicName
+
+	comicImageAttributes := cascadia.MustCompile("img.img-comic").
+			MatchFirst(dilbertPage).Attr
+	comicImage := ""
+	for _, attribute := range comicImageAttributes {
+		if attribute.Key == "src" {
+			comicImage = attribute.Val
+			break
+		}
+	}
+	item.Content = fmt.Sprintf("<img width=\"900\" height=\"280\" alt=\"%s - Dilbert by Scott Adams\" src=\"%s\">", comicName, comicImage)
 }
 
 func processGamercatItem(item *feeds.Item) {
