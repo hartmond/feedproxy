@@ -136,27 +136,49 @@ func processGamercatItem(item *feeds.Item) {
 }
 
 func getCommitstrip() (string, error) {
-	feed, err := getUrlAsString("http://www.commitstrip.com/en/feed/")
-	if err != nil {
-		return "", err
-	}
-	return strings.Split(feed, "</rss>")[0] + "</rss>", nil
-}
-
-func getUrlAsString(url string) (string, error) {
-	resp, err := http.Get(url)
+	resp, err := http.Get("http://www.commitstrip.com/en/feed/")
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
-	return string(body), nil
+
+	return strings.Split(string(body), "</rss>")[0] + "</rss>", nil
 }
 
 func getRuthe() (string, error) {
-	// TODO implement
-	return "ruthe - not implemented", nil
+	//resp, err := http.Get("https://ruthe.de/archiv/3276/datum/asc/")
+	resp, err := http.Get("https://ruthe.de/archiv/0/datum/asc/")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	archivePage, err := html.Parse(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	comicItems := cascadia.MustCompile("#archiv_inner li").MatchAll(archivePage)
+
+	img_query := cascadia.MustCompile("img")
+
+	// TODO build base feed
+
+	for _, x := range comicItems {
+		imageUrlSmall := img_query.MatchFirst(x).Attr[0].Val
+		imageUrl := strings.Replace(imageUrlSmall, "tn_", "", 1)
+		dateRaw := strings.Trim(strings.Split(x.LastChild.Data, "eingestellt: ")[1], " ")
+
+		// TODO add items
+		fmt.Println(imageUrl, dateRaw)
+	}
+
+	// TODO return feed
+	return "", nil
 }
+
