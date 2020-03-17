@@ -5,11 +5,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
-	"golang.org/x/net/html"
 	"github.com/andybalholm/cascadia"
 	"github.com/gorilla/feeds"
 	"github.com/mmcdole/gofeed"
+	"golang.org/x/net/html"
 )
 
 var feedDict = map[string]func() (string, error){
@@ -36,8 +37,7 @@ func processFeed(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(412)
 		return
 	}
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
-	// w.Header().Add("Content-Type", "application/rss+xml; charset=utf-8")
+	w.Header().Add("Content-Type", "application/rss+xml; charset=utf-8")
 	fmt.Fprint(w, processedFeed)
 }
 
@@ -52,13 +52,15 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 			Title:       oldFeed.Title,
 			Link:        &feeds.Link{Href: oldFeed.Link},
 			Description: oldFeed.Description,
-			// TODO Author:      &feeds.Author{Name: oldFeed.Author.Name, Email: oldFeed.Author.Email},
-			// TODO updated date
-			Copyright: oldFeed.Copyright,
+			Copyright:   oldFeed.Copyright,
+		}
+
+		if oldFeed.Author != nil {
+			newFeed.Author = &feeds.Author{Name: oldFeed.Author.Name, Email: oldFeed.Author.Email}
 		}
 
 		newFeed.Items = make([]*feeds.Item, len(oldFeed.Items))
-		progressChan := make(chan(int))
+		progressChan := make(chan (int))
 
 		for index, oldItem := range oldFeed.Items {
 			newItem := convertItem(oldItem)
@@ -69,14 +71,16 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 			}(newItem)
 		}
 
-		for i := 0;  i<len(oldFeed.Items); i++ {
+		for i := 0; i < len(oldFeed.Items); i++ {
 			<-progressChan
 		}
 
 		feedString, err := newFeed.ToRss()
 		if err != nil {
-			return "", nil
+			return "", err
 		}
+
+		newFeed.Updated = newFeed.Items[0].Updated
 		return feedString, nil
 	}
 }
@@ -91,7 +95,7 @@ func convertItem(oldItem *gofeed.Item) (newItem *feeds.Item) {
 
 	if oldItem.Author != nil {
 		newItem.Author = &feeds.Author{
-			Name: oldItem.Author.Name,
+			Name:  oldItem.Author.Name,
 			Email: oldItem.Author.Name,
 		}
 	}
@@ -116,11 +120,11 @@ func processDilbertItem(item *feeds.Item) {
 	}
 
 	comicName := cascadia.MustCompile("span.comic-title-name").
-			MatchFirst(dilbertPage).FirstChild.Data
+		MatchFirst(dilbertPage).FirstChild.Data
 	item.Title += " - " + comicName
 
 	comicImageAttributes := cascadia.MustCompile("img.img-comic").
-			MatchFirst(dilbertPage).Attr
+		MatchFirst(dilbertPage).Attr
 	comicImage := ""
 	for _, attribute := range comicImageAttributes {
 		if attribute.Key == "src" {
@@ -128,7 +132,7 @@ func processDilbertItem(item *feeds.Item) {
 			break
 		}
 	}
-	item.Content = fmt.Sprintf("<img width=\"900\" height=\"280\" alt=\"%s - Dilbert by Scott Adams\" src=\"%s\">", comicName, comicImage)
+	item.Content = fmt.Sprintf("<img alt=\"%s - Dilbert by Scott Adams\" src=\"%s\">", comicName, comicImage)
 }
 
 func processGamercatItem(item *feeds.Item) {
@@ -165,20 +169,37 @@ func getRuthe() (string, error) {
 
 	comicItems := cascadia.MustCompile("#archiv_inner li").MatchAll(archivePage)
 
-	img_query := cascadia.MustCompile("img")
+	imgQuery := cascadia.MustCompile("img")
 
-	// TODO build base feed
-
-	for _, x := range comicItems {
-		imageUrlSmall := img_query.MatchFirst(x).Attr[0].Val
-		imageUrl := strings.Replace(imageUrlSmall, "tn_", "", 1)
-		dateRaw := strings.Trim(strings.Split(x.LastChild.Data, "eingestellt: ")[1], " ")
-
-		// TODO add items
-		fmt.Println(imageUrl, dateRaw)
+	rutheFeed := feeds.Feed{
+		Title: "Ruthe Comics",
+		Id:    "tag:ruthe.de,2005:/feed",
+		Link:  &feeds.Link{Href: "http://ruthe.de"},
 	}
 
-	// TODO return feed
-	return "", nil
-}
+	rutheFeed.Items = make([]*feeds.Item, len(comicItems))
 
+	for i, x := range comicItems {
+		imageURLSmall := imgQuery.MatchFirst(x).Attr[0].Val
+		id := strings.Replace(imageURLSmall, "/cartoons/tn_strip_", "", 1)
+		id = strings.Replace(id, ".jpg", "", 1)
+		dateRaw := strings.Trim(strings.Split(x.LastChild.Data, "eingestellt: ")[1], " ")
+		dateParsed, _ := time.Parse("02.01.'06", dateRaw)
+
+		rutheFeed.Items[i] = &feeds.Item{
+			Title:   fmt.Sprintf("Comic vom %s", dateParsed.Format("02.01.2006")),
+			Updated: dateParsed,
+			Id:      id,
+			Link:    &feeds.Link{Href: fmt.Sprintf("https://ruthe.de/cartoon/%v/", id)},
+			Content: fmt.Sprintf("<img alt=\"Comic\" class=\"img-responsive img-comic\" height=\"300\" src=\"https://ruthe.de/cartoons/strip_%s.jpg\">", id),
+		}
+	}
+
+	rutheFeed.Updated = rutheFeed.Items[0].Updated
+
+	feedString, err := rutheFeed.ToRss()
+	if err != nil {
+		return "", err
+	}
+	return feedString, nil
+}
