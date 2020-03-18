@@ -23,7 +23,7 @@ var feedDict = map[string]func() (string, error){
 func main() {
 	fmt.Println("Starting Server on localhost:8889")
 	http.HandleFunc("/feeds/", processFeed)
-	http.ListenAndServe("localhost:8889", nil)
+	http.ListenAndServe("0.0.0.0:8889", nil)
 }
 
 func processFeed(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +35,7 @@ func processFeed(w http.ResponseWriter, r *http.Request) {
 	processedFeed, err := getFeedFunc()
 	if err != nil {
 		w.WriteHeader(412)
+		fmt.Fprint(w, err.Error())
 		return
 	}
 	w.Header().Add("Content-Type", "application/rss+xml; charset=utf-8")
@@ -140,7 +141,7 @@ func processGamercatItem(item *feeds.Item) {
 }
 
 func getCommitstrip() (string, error) {
-	resp, err := http.Get("http://www.commitstrip.com/en/feed/")
+	resp, err := http.Get("https://www.commitstrip.com/en/feed/")
 	if err != nil {
 		return "", err
 	}
