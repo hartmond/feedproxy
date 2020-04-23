@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/mmcdole/gofeed"
 	"golang.org/x/net/html"
+	"github.com/gorilla/mux"
 )
 
 var feedDict = map[string]func() (string, error){
@@ -22,12 +23,13 @@ var feedDict = map[string]func() (string, error){
 
 func main() {
 	fmt.Println("Starting Server on localhost:8889")
-	http.HandleFunc("/feeds/", processFeed)
-	http.ListenAndServe("0.0.0.0:8889", nil)
+	r := mux.NewRouter()
+	r.HandleFunc("/{base}/{feed}", processFeed)
+	http.ListenAndServe("0.0.0.0:8889", r)
 }
 
 func processFeed(w http.ResponseWriter, r *http.Request) {
-	getFeedFunc, ok := feedDict[r.URL.String()[7:]]
+	getFeedFunc, ok := feedDict[mux.Vars(r)["feed"]]
 	if ok != true {
 		http.NotFound(w, r)
 		return
