@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -9,9 +11,9 @@ import (
 
 	"github.com/andybalholm/cascadia"
 	"github.com/gorilla/feeds"
+	"github.com/gorilla/mux"
 	"github.com/mmcdole/gofeed"
 	"golang.org/x/net/html"
-	"github.com/gorilla/mux"
 )
 
 var feedDict = map[string]func() (string, error){
@@ -19,6 +21,7 @@ var feedDict = map[string]func() (string, error){
 	"gamercat":    getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
 	"ruthe":       getRuthe,
 	"commitstrip": getCommitstrip,
+	"nichtlustig": getNichtlustig,
 }
 
 func main() {
@@ -205,4 +208,46 @@ func getRuthe() (string, error) {
 		return "", err
 	}
 	return feedString, nil
+}
+
+type nichtlustigElement struct {
+	Slug         string `json:"slug"`
+	Image        string `json:"image"`
+	BonusPrivate bool   `json:"bonus"`
+	BonusImage   string `json:"bonus_image"`
+	BonusPublic  bool   `json:"public_bonus"`
+	Tags         string `json:"tags"`
+	Title        string `json:"title"`
+	Color        string `json:"color"`
+}
+
+func getNichtlustig() (string, error) {
+	resp, err := http.Get("https://joscha.com/nichtlustig/")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	data := buf.Bytes()
+
+	dataList := bytes.SplitN(bytes.SplitN(data, []byte("var cartoonList = "), 2)[1], []byte(";</script>"), 2)[0]
+
+	// make javascript to valid JSON...
+	dataList = bytes.Replace(dataList, []byte("'"), []byte("\""), -1)
+	dataList = bytes.Replace(dataList, []byte(",\t]"), []byte("]"), -1)
+
+	var images []nichtlustigElement
+	err = json.Unmarshal(dataList, &images)
+	if err != nil {
+		return "", err
+	}
+
+	res := ""
+	for _, elem := range images[:20] {
+		// TODO build feed
+		res += fmt.Sprintf("%s: %s - https://joscha.com/data/media/cartoons/%s\n", elem.Slug, elem.Title, elem.Image)
+	}
+	return res, nil
 }
