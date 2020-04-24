@@ -244,10 +244,36 @@ func getNichtlustig() (string, error) {
 		return "", err
 	}
 
+	nichtlustigFeed := feeds.Feed{
+		Title: "Nicht Lustig Cartoons",
+		Id:    "tag:joscha.com/nichtlustig,2005:/feed",
+		Link:  &feeds.Link{Href: "https://joscha.com/nichtlustig"},
+	}
+
+	nichtlustigFeed.Items = make([]*feeds.Item, 20)
+
 	res := ""
-	for _, elem := range images[:20] {
+	for i, elem := range images[:20] {
 		// TODO build feed
 		res += fmt.Sprintf("%s: %s - https://joscha.com/data/media/cartoons/%s\n", elem.Slug, elem.Title, elem.Image)
+
+		dateParsed, _ := time.Parse("060102", elem.Slug)
+
+		nichtlustigFeed.Items[i] = &feeds.Item{
+			Title:   fmt.Sprintf("NichtLustig Cartoon vom %s - %s", dateParsed.Format("02.01.2006"), elem.Title),
+			Updated: dateParsed,
+			Id:      elem.Slug,
+			Link:    &feeds.Link{Href: fmt.Sprintf("https://joscha.com/nichtlustig/%v/", elem.Slug)},
+			Content: fmt.Sprintf("<img alt=\"%s\" src=\"https://joscha.com/data/media/cartoons/%s\">", elem.Title, elem.Image),
+		}
 	}
-	return res, nil
+
+	nichtlustigFeed.Updated = nichtlustigFeed.Items[0].Updated
+
+	feedString, err := nichtlustigFeed.ToRss()
+	if err != nil {
+		return "", err
+	}
+	return feedString, nil
+
 }
