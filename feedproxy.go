@@ -17,11 +17,15 @@ import (
 )
 
 var feedDict = map[string]func() (string, error){
-	"dilbert":     getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
-	"gamercat":    getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
-	"ruthe":       getRuthe,
-	"commitstrip": getCommitstrip,
-	"nichtlustig": getNichtlustig,
+	"dilbert":         getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
+	"gamercat":        getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
+	"ruthe":           getRuthe,
+	"commitstrip":     getCommitstrip,
+	"nichtlustig":     getNichtlustig,
+	"heiseonline":     getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "ix"}),
+	"heisesecurity":   getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
+	"heisesdeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
+	"heiseix":         getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"ix"}),
 }
 
 func main() {
@@ -79,6 +83,53 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 
 		for i := 0; i < len(oldFeed.Items); i++ {
 			<-progressChan
+		}
+
+		feedString, err := newFeed.ToRss()
+		if err != nil {
+			return "", err
+		}
+
+		newFeed.Updated = newFeed.Items[0].Updated
+		return feedString, nil
+	}
+}
+
+func contains(list []string, value string) bool {
+	for _, x := range list {
+		if x == value {
+			return true
+		}
+	}
+	return false
+}
+
+func getFilterFeedHandler(feedURL string, include bool, whitelist []string) func() (string, error) {
+	return func() (string, error) {
+		oldFeed, err := gofeed.NewParser().ParseURL(feedURL)
+		if err != nil {
+			return "", err
+		}
+
+		newFeed := feeds.Feed{
+			Title:       oldFeed.Title,
+			Link:        &feeds.Link{Href: oldFeed.Link},
+			Description: oldFeed.Description,
+			Copyright:   oldFeed.Copyright,
+		}
+
+		if oldFeed.Author != nil {
+			newFeed.Author = &feeds.Author{Name: oldFeed.Author.Name, Email: oldFeed.Author.Email}
+		}
+
+		newFeed.Items = []*feeds.Item{}
+
+		for _, oldItem := range oldFeed.Items {
+			newItem := convertItem(oldItem)
+			area := strings.SplitN(newItem.Link.Href, "/", 5)[3]
+			if contains(whitelist, area) == include {
+				newFeed.Items = append(newFeed.Items, newItem)
+			}
 		}
 
 		feedString, err := newFeed.ToRss()
