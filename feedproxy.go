@@ -17,15 +17,15 @@ import (
 )
 
 var feedDict = map[string]func() (string, error){
-	"dilbert":         getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
-	"gamercat":        getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
-	"ruthe":           getRuthe,
-	"commitstrip":     getCommitstrip,
-	"nichtlustig":     getNichtlustig,
-	"heiseonline":     getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "ix"}),
-	"heisesecurity":   getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
-	"heisesdeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
-	"heiseix":         getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"ix"}),
+	"dilbert":        getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
+	"gamercat":       getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
+	"ruthe":          getRuthe,
+	"commitstrip":    getCommitstrip,
+	"nichtlustig":    getNichtlustig,
+	"heiseonline":    getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "ix"}),
+	"heisesecurity":  getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
+	"heisedeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
+	"heiseix":        getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"ix"}),
 }
 
 func main() {
