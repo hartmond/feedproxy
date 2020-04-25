@@ -259,12 +259,19 @@ func getNichtlustig() (string, error) {
 
 		dateParsed, _ := time.Parse("060102", elem.Slug)
 
+		var content string
+		if elem.BonusPublic {
+			content = fmt.Sprintf("<img alt=\"%s\" src=\"https://joscha.com/data/media/cartoons/%s\"><img alt=\"BonusCartoon for %s\" src=\"https://joscha.com/data/media/cartoons/bonus/%s\">", elem.Title, elem.Image, elem.Title, elem.BonusImage)
+		} else {
+			content = fmt.Sprintf("<img alt=\"%s\" src=\"https://joscha.com/data/media/cartoons/%s\">", elem.Title, elem.Image)
+		}
+
 		nichtlustigFeed.Items[i] = &feeds.Item{
 			Title:   fmt.Sprintf("NichtLustig Cartoon vom %s - %s", dateParsed.Format("02.01.2006"), elem.Title),
 			Updated: dateParsed,
 			Id:      elem.Slug,
 			Link:    &feeds.Link{Href: fmt.Sprintf("https://joscha.com/nichtlustig/%v/", elem.Slug)},
-			Content: fmt.Sprintf("<img alt=\"%s\" src=\"https://joscha.com/data/media/cartoons/%s\">", elem.Title, elem.Image),
+			Content: content,
 		}
 	}
 
