@@ -22,6 +22,7 @@ var feedDict = map[string]func() (string, error){
 	"ruthe":          getRuthe,
 	"commitstrip":    getCommitstrip,
 	"nichtlustig":    getNichtlustig,
+	"littlebobby":    getLittlebobby,
 	"heiseonline":    getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "ix"}),
 	"heisesecurity":  getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
 	"heisedeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
@@ -334,4 +335,65 @@ func getNichtlustig() (string, error) {
 	}
 	return feedString, nil
 
+}
+
+func getLittlebobby() (string, error) {
+	resp, err := http.Get("https://www.littlebobbycomic.com/archive/")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	archivePage, err := html.Parse(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	feed := feeds.Feed{
+		Title: "Little Bobby",
+		Id:    "tag:littlebobbycomic.de,2005:/feed",
+		Link:  &feeds.Link{Href: "https://www.littlebobbycomic.com"},
+	}
+
+	comicItems := cascadia.MustCompile("div.project-img-wrap a").MatchAll(archivePage)
+
+	feed.Items = make([]*feeds.Item, len(comicItems))
+
+	for i, x := range comicItems {
+		var link string
+		for _, attr := range x.Attr {
+			if attr.Key == "href" {
+				link = attr.Val
+				break
+			}
+		}
+		week := x.FirstChild.NextSibling.FirstChild.Data
+		date, err := time.Parse("January 2, 2006", x.LastChild.FirstChild.Data)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var image string
+		for _, attr := range x.FirstChild.Attr {
+			if attr.Key == "src" {
+				image = strings.Replace(attr.Val, "-480x270", "", 1)
+				break
+			}
+		}
+
+		feed.Items[i] = &feeds.Item{
+			Title:   fmt.Sprintf("LittleBobbyComic for %s (%s)", week, date.Format("02.01.2006")),
+			Updated: date,
+			Id:      week,
+			Link:    &feeds.Link{Href: link},
+			Content: fmt.Sprintf("<img alt=\"Comic\" height=\"300\" src=\"%s\">", image),
+		}
+	}
+
+	feed.Updated = feed.Items[0].Updated
+
+	feedString, err := feed.ToRss()
+	if err != nil {
+		return "", err
+	}
+	return feedString, nil
 }

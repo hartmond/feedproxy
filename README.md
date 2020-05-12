@@ -16,6 +16,7 @@ The feeds are accessible from any subfolder, thereby an arbitrary unused path of
 * https://ruthe.de build missing feed from scratch
 * https://www.commitstrip.com remove wordpress cache info at end of document
 * https://joscha.com/nichtlustig build missing feed from scratch
+* https://www.littlebobbycomic.com build missing feed for comics
 
 ### https://www.heise.de
 As some news items appear on multiple feeds, filtered versions for heiseOnline, heiseSecurity, heiseDeveloper and iX are created to make each news item only appear on one of the feeds.
