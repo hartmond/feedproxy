@@ -23,10 +23,10 @@ var feedDict = map[string]func() (string, error){
 	"commitstrip":    getCommitstrip,
 	"nichtlustig":    getNichtlustig,
 	"littlebobby":    getLittlebobby,
-	"heiseonline":    getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "ix"}),
+	"heiseonline":    getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "select/ix"}),
 	"heisesecurity":  getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
 	"heisedeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
-	"heiseix":        getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"ix"}),
+	"heiseix":        getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"select/ix"}),
 }
 
 func main() {
@@ -98,7 +98,7 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 
 func contains(list []string, value string) bool {
 	for _, x := range list {
-		if x == value {
+		if strings.HasPrefix(value, x) {
 			return true
 		}
 	}
@@ -127,7 +127,7 @@ func getFilterFeedHandler(feedURL string, include bool, whitelist []string) func
 
 		for _, oldItem := range oldFeed.Items {
 			newItem := convertItem(oldItem)
-			area := strings.SplitN(newItem.Link.Href, "/", 5)[3]
+			area := strings.SplitN(newItem.Link.Href, "/", 4)[3]
 			if contains(whitelist, area) == include {
 				newFeed.Items = append(newFeed.Items, newItem)
 			}
@@ -138,7 +138,11 @@ func getFilterFeedHandler(feedURL string, include bool, whitelist []string) func
 			return "", err
 		}
 
-		newFeed.Updated = newFeed.Items[0].Updated
+		if len(newFeed.Items) > 1 {
+			newFeed.Updated = newFeed.Items[0].Updated
+		} else {
+			time.Now()
+		}
 		return feedString, nil
 	}
 }
