@@ -329,7 +329,7 @@ func getNichtlustig() (string, error) {
 	buf.ReadFrom(resp.Body)
 	data := buf.Bytes()
 
-	dataList := bytes.SplitN(bytes.SplitN(data, []byte("var cartoonList = "), 2)[1], []byte(";</script>"), 2)[0]
+	dataList := bytes.SplitN(bytes.SplitN(data, []byte("var cartoonList = "), 2)[1], []byte("; </script>"), 2)[0]
 
 	// make javascript to valid JSON...
 	dataList = bytes.Replace(dataList, []byte("'"), []byte("\""), -1)
