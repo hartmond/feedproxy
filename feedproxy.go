@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -17,16 +18,18 @@ import (
 )
 
 var feedDict = map[string]func() (string, error){
-	"dilbert":        getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
-	"gamercat":       getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
-	"ruthe":          getRuthe,
-	"commitstrip":    getCommitstrip,
-	"nichtlustig":    getNichtlustig,
-	"littlebobby":    getLittlebobby,
-	"heiseonline":    getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "select/ix"}),
-	"heisesecurity":  getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
-	"heisedeveloper": getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
-	"heiseix":        getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"select/ix"}),
+	"dilbert":         getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
+	"gamercat":        getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
+	"dinosandcomics":  getModifyFeedHandler("https://www.webtoons.com/en/challenge/dinos-and-comics/rss?title_no=657052", extendWebToonsItem),
+	"tortoiseanddino": getModifyFeedHandler("https://www.webtoons.com/en/challenge/tortoise-and-dino/rss?title_no=656753", extendWebToonsItem),
+	"ruthe":           getRuthe,
+	"commitstrip":     getCommitstrip,
+	"nichtlustig":     getNichtlustig,
+	"littlebobby":     getLittlebobby,
+	"heiseonline":     getFilterFeedHandler("https://www.heise.de/rss/heise-atom.xml", false, []string{"security", "developer", "select/ix"}),
+	"heisesecurity":   getFilterFeedHandler("https://www.heise.de/security/rss/news-atom.xml", true, []string{"security"}),
+	"heisedeveloper":  getFilterFeedHandler("https://www.heise.de/developer/rss/news-atom.xml", true, []string{"developer"}),
+	"heiseix":         getFilterFeedHandler("https://www.heise.de/ix/rss/news-atom.xml", true, []string{"select/ix"}),
 }
 
 func main() {
@@ -181,9 +184,13 @@ func processDilbertItem(item *feeds.Item) {
 		return // do nothing; leave feed item unchanged
 	}
 
-	comicName := cascadia.MustCompile("span.comic-title-name").
-		MatchFirst(dilbertPage).FirstChild.Data
-	item.Title += " - " + comicName
+	comicNameTag := cascadia.MustCompile("span.comic-title-name").
+		MatchFirst(dilbertPage).FirstChild
+	comicName := ""
+	if comicNameTag != nil {
+		item.Title += " - " + comicNameTag.Data
+		comicName = comicNameTag.Data
+	}
 
 	comicImageAttributes := cascadia.MustCompile("img.img-comic").
 		MatchFirst(dilbertPage).Attr
@@ -199,6 +206,40 @@ func processDilbertItem(item *feeds.Item) {
 
 func processGamercatItem(item *feeds.Item) {
 	item.Content = strings.Replace(item.Content, "-200x150", "", 1)
+}
+
+func extendWebToonsItem(item *feeds.Item) {
+	req, err := http.NewRequest("GET", item.Link.Href, nil)
+	if err != nil {
+		return // do nothing; leave feed item unchanged
+	}
+	// Needed to pass age verification
+	req.AddCookie(&http.Cookie{
+		Name:  "pagGDPR",
+		Value: "true",
+	})
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return // do nothing; leave feed item unchanged
+	}
+	defer resp.Body.Close()
+
+	webtoonsPage, err := html.Parse(resp.Body)
+	if err != nil {
+		return // do nothing; leave feed item unchanged
+	}
+
+	comicImagesTag := cascadia.MustCompile("#_imageList").
+		MatchFirst(webtoonsPage)
+	if comicImagesTag == nil {
+		return // do nothing; leave feed item unchanged
+	}
+
+	var buf bytes.Buffer
+	w := io.Writer(&buf)
+	html.Render(w, comicImagesTag)
+	item.Content = buf.String()
 }
 
 func getCommitstrip() (string, error) {
