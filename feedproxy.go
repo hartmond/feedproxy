@@ -17,7 +17,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-var feedDict = map[string]func() (string, error){
+var feedDict = map[string]func(string) (string, error){
 	"dilbert":         getModifyFeedHandler("http://dilbert.com/feed", processDilbertItem),
 	"gamercat":        getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
 	"dinosandcomics":  getModifyFeedHandler("https://www.webtoons.com/en/challenge/dinos-and-comics/rss?title_no=657052", extendWebToonsItem),
@@ -35,17 +35,18 @@ var feedDict = map[string]func() (string, error){
 func main() {
 	fmt.Println("Starting Server on localhost:8889")
 	r := mux.NewRouter()
+	r.HandleFunc("/{base}/webtoons/{path:.*}", webToonsProxy) // needed as referer is checked
 	r.HandleFunc("/{base}/{feed}", processFeed)
 	http.ListenAndServe("0.0.0.0:8889", r)
 }
 
 func processFeed(w http.ResponseWriter, r *http.Request) {
 	getFeedFunc, ok := feedDict[mux.Vars(r)["feed"]]
-	if ok != true {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	processedFeed, err := getFeedFunc()
+	processedFeed, err := getFeedFunc("https://" + r.Host + "/" + mux.Vars(r)["base"])
 	if err != nil {
 		w.WriteHeader(412)
 		fmt.Fprint(w, err.Error())
@@ -55,8 +56,24 @@ func processFeed(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, processedFeed)
 }
 
-func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (string, error) {
-	return func() (string, error) {
+func webToonsProxy(w http.ResponseWriter, r *http.Request) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://webtoon-phinf.pstatic.net/%s", mux.Vars(r)["path"]), nil)
+	if err != nil {
+		return
+	}
+
+	req.Header.Set("Referer", "https://www.webtoons.com/en/")
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return
+	}
+
+	io.Copy(w, resp.Body)
+}
+
+func getModifyFeedHandler(feedURL string, modifyItem func(string, *feeds.Item)) func(string) (string, error) {
+	return func(base string) (string, error) {
 		oldFeed, err := gofeed.NewParser().ParseURL(feedURL)
 		if err != nil {
 			return "", err
@@ -80,7 +97,7 @@ func getModifyFeedHandler(feedURL string, modifyItem func(*feeds.Item)) func() (
 			newItem := convertItem(oldItem)
 			newFeed.Items[index] = newItem
 			go func(item *feeds.Item) {
-				modifyItem(item)
+				modifyItem(base, item)
 				progressChan <- 1
 			}(newItem)
 		}
@@ -108,8 +125,8 @@ func contains(list []string, value string) bool {
 	return false
 }
 
-func getFilterFeedHandler(feedURL string, include bool, whitelist []string) func() (string, error) {
-	return func() (string, error) {
+func getFilterFeedHandler(feedURL string, include bool, whitelist []string) func(string) (string, error) {
+	return func(base string) (string, error) {
 		oldFeed, err := gofeed.NewParser().ParseURL(feedURL)
 		if err != nil {
 			return "", err
@@ -172,7 +189,7 @@ func convertItem(oldItem *gofeed.Item) (newItem *feeds.Item) {
 	return
 }
 
-func processDilbertItem(item *feeds.Item) {
+func processDilbertItem(base string, item *feeds.Item) {
 	resp, err := http.Get(item.Link.Href)
 	if err != nil {
 		return // do nothing; leave feed item unchanged
@@ -204,11 +221,11 @@ func processDilbertItem(item *feeds.Item) {
 	item.Content = fmt.Sprintf("<img alt=\"%s - Dilbert by Scott Adams\" src=\"%s\">", comicName, comicImage)
 }
 
-func processGamercatItem(item *feeds.Item) {
+func processGamercatItem(base string, item *feeds.Item) {
 	item.Content = strings.Replace(item.Content, "-200x150", "", 1)
 }
 
-func extendWebToonsItem(item *feeds.Item) {
+func extendWebToonsItem(base string, item *feeds.Item) {
 	req, err := http.NewRequest("GET", item.Link.Href, nil)
 	if err != nil {
 		return // do nothing; leave feed item unchanged
@@ -236,13 +253,24 @@ func extendWebToonsItem(item *feeds.Item) {
 		return // do nothing; leave feed item unchanged
 	}
 
-	var buf bytes.Buffer
-	w := io.Writer(&buf)
-	html.Render(w, comicImagesTag)
-	item.Content = buf.String()
+	result := ""
+	for img := comicImagesTag.FirstChild; img != nil; img = img.NextSibling {
+		url := ""
+		for _, attr := range img.Attr {
+			if attr.Key == "data-url" {
+				url = attr.Val
+				break
+			}
+		}
+		path := strings.TrimPrefix(url, "https://webtoon-phinf.pstatic.net/")
+		if path != "" {
+			result += fmt.Sprintf("<img src=\"%s\">\n", base+"/webtoons/"+path)
+		}
+	}
+	item.Content = result
 }
 
-func getCommitstrip() (string, error) {
+func getCommitstrip(base string) (string, error) {
 	resp, err := http.Get("https://www.commitstrip.com/en/feed/")
 	if err != nil {
 		return "", err
@@ -257,7 +285,7 @@ func getCommitstrip() (string, error) {
 	return strings.Split(string(body), "</rss>")[0] + "</rss>", nil
 }
 
-func getRuthe() (string, error) {
+func getRuthe(base string) (string, error) {
 	//resp, err := http.Get("https://ruthe.de/archiv/3276/datum/asc/")
 	resp, err := http.Get("https://ruthe.de/archiv/0/datum/asc/")
 	if err != nil {
@@ -318,7 +346,7 @@ type nichtlustigElement struct {
 	Color        string `json:"color"`
 }
 
-func getNichtlustig() (string, error) {
+func getNichtlustig(base string) (string, error) {
 	resp, err := http.Get("https://joscha.com/nichtlustig/")
 	if err != nil {
 		return "", err
@@ -382,7 +410,7 @@ func getNichtlustig() (string, error) {
 
 }
 
-func getLittlebobby() (string, error) {
+func getLittlebobby(base string) (string, error) {
 	resp, err := http.Get("https://www.littlebobbycomic.com/archive/")
 	if err != nil {
 		return "", err
