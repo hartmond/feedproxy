@@ -17,6 +17,11 @@ The feeds are accessible from any subfolder, thereby an arbitrary unused path of
 * https://www.commitstrip.com remove wordpress cache info at end of document
 * https://joscha.com/nichtlustig build missing feed from scratch
 * https://www.littlebobbycomic.com build missing feed for comics
+* webtoons - include all images in description
+    * https://www.webtoons.com/en/challenge/work-chronicles/list?title_no=563942
+	* https://www.webtoons.com/en/challenge/tortoise-and-dino/list?title_no=656753
+	* https://www.webtoons.com/en/challenge/system32comics/list?title_no=235074
+	* https://www.webtoons.com/en/challenge/work-chronicles/list?title_no=563942
 
 ### https://www.heise.de
 As some news items appear on multiple feeds, filtered versions for heiseOnline, heiseSecurity, heiseDeveloper and iX are created to make each news item only appear on one of the feeds.

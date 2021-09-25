@@ -22,6 +22,8 @@ var feedDict = map[string]func(string) (string, error){
 	"gamercat":        getModifyFeedHandler("http://www.thegamercat.com/feed/", processGamercatItem),
 	"dinosandcomics":  getModifyFeedHandler("https://www.webtoons.com/en/challenge/dinos-and-comics/rss?title_no=657052", extendWebToonsItem),
 	"tortoiseanddino": getModifyFeedHandler("https://www.webtoons.com/en/challenge/tortoise-and-dino/rss?title_no=656753", extendWebToonsItem),
+	"system32comics":  getModifyFeedHandler("https://www.webtoons.com/en/challenge/system32comics/rss?title_no=235074", extendWebToonsItem),
+	"workchronicles":  getModifyFeedHandler("https://www.webtoons.com/en/challenge/work-chronicles/rss?title_no=563942", extendWebToonsItem),
 	"ruthe":           getRuthe,
 	"commitstrip":     getCommitstrip,
 	"nichtlustig":     getNichtlustig,
